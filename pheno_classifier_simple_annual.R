@@ -23,10 +23,10 @@ target_years <- c(seq(2013,2019,2))
 # Load phenology rasters
 load_phenoseries <- function(year)
 {
-  ndvi <- brick(paste(directory,"pheno_NDVI_",year,".tif",sep=""))
-  wetness <- brick(paste(directory,"pheno_tc_wet_",year,".tif",sep=""))
-  brightness <- brick(paste(directory,"pheno_tc_bright_",year,".tif",sep=""))
-  phenoseries <- stack(ndvi[[1:11]],wetness[[1:11]],brightness[[1:11]])
+  ndvi <- brick(paste(directory,"pheno_NDVI_",year,"_annual.tif",sep=""))
+  wetness <- brick(paste(directory,"pheno_tc_wet_",year,"_annual.tif",sep=""))
+  brightness <- brick(paste(directory,"pheno_tc_bright_",year,"_annual.tif",sep=""))
+  phenoseries <- stack(ndvi[[1:12]],wetness[[1:12]],brightness[[1:12]])
   return(phenoseries)
 }
 temp_for_crs <- load_phenoseries(target_years[[1]])
@@ -40,7 +40,10 @@ dem <- raster("D:/SERDP/Vandenberg/hydrology/dem_resamp.tif")
 dem <- aggregate_custom(dem, temp_for_crs, reproj_method="bilinear")
 channel_dist <- raster("D:/SERDP/Vandenberg/hydrology/phenology_classifier/distance_to_channel_ln.tif")
 channel_dist <- aggregate_custom(channel_dist, temp_for_crs, reproj_method="bilinear")
-
+# For some reason channel raster is too small - pad to full study area extent with NA values
+full_area_zeros <- temp_for_crs[[1]] * 0
+channel_dist <- extend(channel_dist, full_area_zeros)
+channel_dist[channel_dist == 0] <- NA
 
 generate_training_data <- function(phenoseries)
 {
@@ -112,12 +115,12 @@ generate_training_data <- function(phenoseries)
     drop_na()
   label_df$class <- factor(label_df$class, 
                            levels = c("Riparian", "Oak", "Chaparral", "Annual","Agriculture", "Soil", "Water", "Urban"))#,"Evergreen Nonnative"))
-  names(label_df) <- c(as.character(1:33),"slope","dem","channel_dist","x","y","class")
+  names(label_df) <- c(as.character(1:36),"slope","dem","channel_dist","x","y","class")
   
   
   
   # **** Visualize Greenness Phenology **** 
-  pheno_df_long <- label_df %>% pivot_longer((1:11), names_to="month", values_to="ndvi")
+  pheno_df_long <- label_df %>% pivot_longer((1:12), names_to="month", values_to="ndvi")
   pheno_df_long$month <- as.numeric(pheno_df_long$month)
   pheno_stats <- pheno_df_long %>% 
     group_by(class, month) %>%
@@ -127,13 +130,15 @@ generate_training_data <- function(phenoseries)
               p_75=quantile(ndvi, probs=c(0.75)),
               p_95=quantile(ndvi, probs=c(0.95)))
   # Natural Vegetation Phenology
-  veg_pheno_plot <- ggplot(data=pheno_stats[pheno_stats$class %in% factor(c("Riparian","Oak","Chaparral","Annual","Evergreen Nonnative","Agriculture")),], aes(x=month)) + 
+  veg_pheno_plot <- ggplot(data=pheno_stats[pheno_stats$class %in% factor(c("Riparian","Oak","Chaparral","Annual")),], aes(x=month)) + 
     geom_line(aes(y=p_05), linetype="dashed", color="red") + 
     geom_line(aes(y=p_25), color = "cyan3") + 
     geom_line(aes(y=p_50)) + 
     geom_line(aes(y=p_75), color = "cyan3") + 
     geom_line(aes(y=p_95), linetype="dashed", color="red") + 
     geom_hline(yintercept=0, color="gray") +
+    scale_x_continuous(limits=c(1,12), breaks=(1:12)) +
+    scale_y_continuous(limits=c(0.2,1.0)) + 
     facet_wrap(~class, ncol=1) + 
     labs(x = "Month of Year",
          y = "NDVI") + 
@@ -150,7 +155,7 @@ generate_training_data <- function(phenoseries)
               p_75=quantile(ndvi, probs=c(0.75)),
               p_95=quantile(ndvi, probs=c(0.95)))
   # Natural Vegetation Phenology
-  veg_wetness_plot <- ggplot(data=pheno_wetness_stats[pheno_wetness_stats$class %in% factor(c("Riparian","Oak","Chaparral","Annual","Evergreen Nonnative","Agriculture")),], 
+  veg_wetness_plot <- ggplot(data=pheno_wetness_stats[pheno_wetness_stats$class %in% factor(c("Riparian","Oak","Chaparral","Annual")),], 
                              aes(x=month-11)) + 
     geom_line(aes(y=p_05), linetype="dashed", color="red") + 
     geom_line(aes(y=p_25), color = "cyan3") + 
@@ -158,6 +163,8 @@ generate_training_data <- function(phenoseries)
     geom_line(aes(y=p_75), color = "cyan3") + 
     geom_line(aes(y=p_95), linetype="dashed", color="red") + 
     geom_hline(yintercept=0, color="gray") +
+    scale_x_continuous(limits=c(1,12), breaks=(1:12)) + 
+    scale_y_continuous(limits=c(0.2,1.0)) + 
     facet_wrap(~class, ncol=1) + 
     labs(x = "Month of Year",
          y = "Tasselled Cap Wetness") + 
@@ -175,7 +182,7 @@ generate_training_data <- function(phenoseries)
               p_75=quantile(ndvi, probs=c(0.75)),
               p_95=quantile(ndvi, probs=c(0.95)))
   # Natural Vegetation Phenology
-  veg_brightness_plot <- ggplot(data=pheno_brightness_stats[pheno_brightness_stats$class %in% factor(c("Riparian","Oak","Chaparral","Annual","Evergreen Nonnative","Agriculture")),], 
+  veg_brightness_plot <- ggplot(data=pheno_brightness_stats[pheno_brightness_stats$class %in% factor(c("Riparian","Oak","Chaparral","Annual")),], 
                                 aes(x=month-22)) + 
     geom_line(aes(y=p_05), linetype="dashed", color="red") + 
     geom_line(aes(y=p_25), color = "cyan3") + 
@@ -184,6 +191,8 @@ generate_training_data <- function(phenoseries)
     geom_line(aes(y=p_95), linetype="dashed", color="red") + 
     geom_hline(yintercept=0, color="gray") +
     facet_wrap(~class, ncol=1) + 
+    scale_x_continuous(limits=c(1,12), breaks=(1:12)) + 
+    scale_y_continuous(limits=c(0.2,1.0)) + 
     labs(x = "Month of Year",
          y = "Tasselled Cap Brightness") + 
     ggtitle("Brightness Phenology by Vegetation Type")
@@ -357,7 +366,7 @@ for(year in target_years)
   validation_results_all <- raster::predict(modFit_rf, newdata=leftover)
   confusionMatrix(validation_results_all, as.factor(leftover$class))
   # --- Variable Importance ---
-  varImp(modFit_rf)
+  print(varImp(modFit_rf))
   
   predict_raster(phenoseries, year, modFit_rf)
 }

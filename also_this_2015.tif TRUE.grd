@@ -1,0 +1,26 @@
+[general]
+creator=R package 'raster'
+created=2021-06-20 00:13:50
+[georeference]
+nrows=1770
+ncols=973
+xmin=710685
+ymin=3828105
+xmax=739875
+ymax=3881205
+projection=+proj=utm +zone=10 +datum=WGS84 +units=m +no_defs
+[data]
+datatype=FLT4S
+byteorder=little
+nbands=1
+bandorder=BIL
+categorical=FALSE
+minvalue=1
+maxvalue=9
+nodatavalue=-3.4e+38
+[legend]
+legendtype=
+values=
+color=
+[description]
+layername=class
